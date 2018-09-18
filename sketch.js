@@ -18,21 +18,8 @@ let r;
 let g;
 let b;
 let a;
-let rSum = 0;
-let rAvg = 0;
-
-let gSum = 0;
-let gAvg = 0;
-
-let bSum = 0;
-let bAvg = 0;
-
-let aSum = 0;
-let aAvg = 0;
 
 let index;
-
-let totalRs;
 
 //p5 sound vars
 //p5 sound vars
@@ -56,19 +43,31 @@ function setup() {
     envelope = new p5.Env();
     envelope1 = new p5.Env();
     //set attackTime, decayTime, sustainRatio, releaseTime
-    envelope.setADSR(10, 0.5, 0.2, 0.0);
+    envelope.setADSR(10, 0.5, 0.2, 1.0);
     envelope1.setADSR(5, 0.5, 0.2, 3.0);
     //set attackLevel, releaseLevel
-    envelope.setRange(1, 0);
-    envelope1.setRange(1, 0);
+    envelope.setRange(.25, 0);
+    envelope1.setRange(.25, 0);
     delay = new p5.Delay();
+
     filter = new p5.LowPass();
-    osc = new p5.TriOsc();
+    osc = new p5.SinOsc();
     osc1 = new p5.SinOsc();
+    osc2 = new p5.SinOsc();
     osc.amp(0.0);
     osc.start();
     osc1.amp(0.0);
     osc1.start();
+    osc2.amp(0.0);
+    osc2.start();
+
+    osc.disconnect();
+    osc.connect(filter);
+    osc1.disconnect();
+    osc1.connect(filter);
+    osc2.disconnect();
+    osc2.connect(filter);
+
   //////p5 SOUND
   //////p5 SOUND
   //////p5 SOUND
@@ -94,57 +93,16 @@ function draw(){
   if (isTransferring) {
     image(resultImg, 0, 0, 320, 240);
   //read rgba values by running through entire width/height of the image  
-    for(let x = 0; x<video.width; x++){
-      for(let y = 0; y<video.height; y++){
-        index = (x + y * width) * 4;
-        r = video.pixels[index+0]; 
-        g = video.pixels[index+1]; 
-        b = video.pixels[index+2]; 
-        a = video.pixels[index+3]; 
-        //calculate the sum of all of the r values
-        // rSum += r;
-      }
-    }
-    //filterFreq = map (mouseY, 0, width, 10, 22050);
-    filterFreq = map (g, 40, 125, 10000, 22050);
-
-    // Map mouseY to resonance (volume boost) at the cutoff frequency
-    //filterRes = map(mouseX, 0, height, 15, 5);
-    filterRes = map(b, 40, 125, 15, 5);
-
-    // set filter parameters
-    filter.set(filterFreq, filterRes);
-
-
-    //calculate and display the average of the r values at each frame
-    rAvg = rSum/(width*height);
-    console.log(r, g, b);
+    calcPixels();
+    mapFilter();
+    playNotes();
+    // if(frameCount % 60 == 0){
+    //   console.log(r, g, b, filterRes, filterFreq);
+    // }
     
-      if(r>70){
-        let rMapped = map(r, 60, 255, 0, 1);
-        let gMapped = map(g, 60, 255, 0, 1);
-        let bMapped = map(b, 60, 255, 0, 1);
-        //delay.process(osc1, .12, .7, 2300)
-        delay.process(osc, rMapped, .4, g*20);
-        delay.process(osc1, bMapped, .7, b*20);
-        ;
-        osc.amp(envelope);
-        osc.freq(440);
-        envelope.play(osc, 0, 0.25);
-        osc1.amp(envelope1);
-        osc1.freq(880);
-        envelope1.play(osc1, 0, 0.25);
-        
-      }else{
-        osc.amp(0.0);
-        osc1.amp(0.0);
-      }
   } else {
     image(video, 0, 0, 320, 240); 
   }
-
-  rSum = 0;
-  rAvg = 0;
 }
 
 // A function to call when the model has been loaded.
@@ -171,3 +129,63 @@ function gotResult(err, img) {
     style.transfer(gotResult); 
   }
 }
+
+function calcPixels(){
+  for(let x = 0; x<video.width; x++){
+    for(let y = 0; y<video.height; y++){
+      index = (x + y * video.width) * 4;
+      r = video.pixels[index+0]; 
+      g = video.pixels[index+1]; 
+      b = video.pixels[index+2]; 
+      a = video.pixels[index+3]; 
+    }
+  }
+
+}
+
+function mapFilter(){
+ //filterFreq = map (mouseY, 0, width, 10, 22050);
+ filterFreq = floor(map(g, 0, 255, 10, 22050));
+
+ // Map mouseY to resonance (volume boost) at the cutoff frequency
+ //filterRes = map(mouseX, 0, height, 15, 5);
+ filterRes = floor(map(b, 0, 255, 5, 1));
+
+ // set filter parameters
+ filter.set(filterFreq, filterRes);
+
+}
+
+function playNotes(){
+  if(r>20 && r <= 255){
+    let rMapped = map(r, 0, 255, 0, .99);
+    let gMapped = map(g, 0, 255, 0, .99);
+    let bMapped = map(b, 0, 255, 0, .99);
+    //delay.process(osc1, .12, .7, 2300)
+    delay.process(osc, rMapped, .7, g*20);
+    delay.process(osc1, bMapped, .7, b*20);
+    delay.process(osc2, bMapped, .7, b*20);
+    //Gminor scale setup (G, A, B♭, C, D, E♭, and F)
+    let scale = [196.00, 196*2, 220.00*2, 233.08, 261.63*2, 293.66, 311.13*2, 349.23*2];
+    let rScale = floor(random(0, scale.length));
+    osc.amp(envelope);
+    osc.freq(scale[rScale]);
+    envelope.play(osc, 0, 0.1);
+    osc1.amp(envelope1);
+    osc1.freq(scale[rScale]);
+    envelope1.play(osc1, 0, 0.1);
+    osc2.amp(envelope1);
+    osc2.freq(scale[rScale]);
+    envelope1.play(osc2, 0, 0.1);
+   
+    
+  }else{
+    osc.amp(0.0);
+    osc1.amp(0.0);
+    osc2.amp(0.0);
+  }
+
+}
+
+
+
